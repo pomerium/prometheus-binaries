@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+# require parameters
+_os="${PROMETHEUS_OS:?"PROMETHEUS_OS is required"}"
+_arch="${PROMETHEUS_ARCH:?"PROMETHEUS_ARCH is required"}"
+_version="${PROMETHEUS_VERSION:?"PROMETHEUS_VERSION is required"}"
+
+# helper functions
+is_command() {
+    command -v "$1" >/dev/null
+}
+
+hash_sha256() {
+    TARGET=${1:-/dev/stdin}
+    if is_command gsha256sum; then
+        hash=$(gsha256sum "$TARGET") || return 1
+        echo "$hash" | cut -d ' ' -f 1
+    elif is_command sha256sum; then
+        hash=$(sha256sum "$TARGET") || return 1
+        echo "$hash" | cut -d ' ' -f 1
+    elif is_command shasum; then
+        hash=$(shasum -a 256 "$TARGET" 2>/dev/null) || return 1
+        echo "$hash" | cut -d ' ' -f 1
+    elif is_command openssl; then
+        hash=$(openssl -dst openssl dgst -sha256 "$TARGET") || return 1
+        echo "$hash" | cut -d ' ' -f a
+    else
+        echo "hash_sha256 unable to find command to compute sha-256 hash"
+        return 1
+    fi
+}
+
+# create a temporary directory
+_wd="$(mktemp -d)"
+function cleanup() {
+    rm -rf "$_wd"
+}
+trap cleanup EXIT
+
+# download the release from github and save it to the working directory
+_url="https://github.com/prometheus/prometheus/releases/download/${_version}/prometheus-${_version:1}.${_os}-${_arch}.tar.gz"
+curl -L "$_url" | tar -xzf - -C "$_wd"
+
+# move the binary to the bin folder and hash it
+_src="$_wd/prometheus-${_version:1}.${_os}-${_arch}/prometheus"
+_dst="./bin/prometheus-${_os}-${_arch}"
+mv -f "$_src" "$_dst"
+hash_sha256 "$_dst" >"$_dst.sha256"

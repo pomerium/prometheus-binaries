@@ -1,0 +1,34 @@
+name: Release
+
+on: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: tagName
+        run: |
+          TAG=${GITHUB_REF##*/}
+          echo ::set-output name=tag::${TAG}
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Fetch
+        run: |
+          for _os in darwin linux ; do
+            for _arch in amd64 arm64 ; do
+              env PROMETHEUS_VERSION="${{ steps.tagName.outputs.tag }}" \
+                  PROMETHEUS_OS="$_os" \
+                  PROMETHEUS_ARCH="$_arch" \
+                  ./scripts/get-prometheus
+            done
+          done
+
+      - name: Upload
+        working-directory: bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.tagName.outputs.tag }}" prometheus-*
