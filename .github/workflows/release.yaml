@@ -10,7 +10,7 @@ jobs:
         id: tagName
         run: |
           TAG=${GITHUB_REF##*/}
-          echo ::set-output name=tag::${TAG}
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v4
